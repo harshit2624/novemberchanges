@@ -19,6 +19,7 @@
   "dependencies": {
     "@frontity/components": "^1.7.2",
     "@frontity/html2react": "^1.7.0",
+    "firebase": "^12.2.1",
     "frontity": "^1.15.0",
     "react-spring": "^8.0.27"
   }

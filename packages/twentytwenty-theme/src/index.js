@@ -1,6 +1,33 @@
 import Theme from "./components";
 import image from "@frontity/html2react/processors/image";
 import link from "@frontity/html2react/processors/link";
+import woocommerceHandler from "./handlers/woocommerce-handler";
+
+const productCategoryHandler = {
+  pattern: "/product-category/:slug",
+  func: async ({ link, params, state, libraries }) => {
+    const response = await libraries.source.api.get({
+      endpoint: "product_cat",
+      params: { slug: params.slug },
+    });
+
+    const category = await response.json();
+    const categoryId = category[0]?.id;
+
+    if (categoryId) {
+      state.source.data[link] = {
+        id: categoryId,
+        taxonomy: "product_cat",
+        isProductCategory: true,
+        categorySlug: params.slug,
+      };
+    } else {
+      state.source.data[link] = {
+        is404: true,
+      };
+    }
+  },
+};
 
 const twentyTwentyTheme = {
   name: "@frontity/twentytwenty-theme",
@@ -23,7 +50,7 @@ const twentyTwentyTheme = {
           light: "#DCD7CA",
           lighter: "#F5EFE0",
         },
-        primary: "#cd2653",
+        primary: "#002eff",
         headerBg: "#ffffff",
         footerBg: "#ffffff",
         bodyBg: "#f5efe0",
@@ -75,6 +102,7 @@ const twentyTwentyTheme = {
         state.theme.isSearchModalOpen = false;
       },
     },
+    woocommerceHandler,
   },
   libraries: {
     html2react: {
@@ -84,6 +112,9 @@ const twentyTwentyTheme = {
        * You can add your own processors too.
        */
       processors: [image, link],
+      source: {
+        handlers: [productCategoryHandler],
+      },
     },
   },
 };
