@@ -12,6 +12,45 @@ import CrosLogo from '../../../../static/image/crosBLK.png';
 import "swiper/swiper.min.css";
 import "swiper/modules/navigation/navigation.min.css";
 
+const formatPolicyText = (text) => {
+  if (!text) return '';
+  const lines = text.split('\n');
+  let html = '';
+  let inList = false;
+  lines.forEach(line => {
+    line = line.trim();
+    if (!line) return;
+    if (line.length < 20 && !line.includes(':') && !line.startsWith('-')) {
+      // Treat as heading
+      if (inList) {
+        html += '</ul>';
+        inList = false;
+      }
+      html += `<h3 style="margin: 10px 0 5px 0; font-weight: bold;">${line}</h3>`;
+    } else if (line.includes(':')) {
+      if (inList) {
+        html += '</ul>';
+        inList = false;
+      }
+      html += `<p style="margin: 5px 0;"><strong>${line}</strong></p>`;
+    } else if (line.startsWith('-') || line.match(/^\d+\./) || line.startsWith('•')) {
+      if (!inList) {
+        html += '<ul style="margin: 5px 0; padding-left: 20px;">';
+        inList = true;
+      }
+      html += `<li>${line.replace(/^[-•]\s*/, '').replace(/^\d+\.\s*/, '')}</li>`;
+    } else {
+      if (inList) {
+        html += '</ul>';
+        inList = false;
+      }
+      html += `<p style="margin: 5px 0;">${line}</p>`;
+    }
+  });
+  if (inList) html += '</ul>';
+  return html;
+};
+
 const ProductPage = ({ actions, state }) => {
   const [product, setProduct] = useState(null);
   const [variations, setVariations] = useState([]);
@@ -696,17 +735,37 @@ const ProductPage = ({ actions, state }) => {
                           </a>
                         </p> */}
                         <>
-                          <p>1. Exchange Policy (Defective Products Only):</p>
-                          <p>Eligibility: We accept exchanges only for defective or damaged products. If your item arrives with a manufacturing defect or has been damaged during shipping, please contact us within 7 days of receiving the product. In case purchase made during a sale or discount running on website no return or exchange will be entertained.
-                            Exchange Process: After we receive the defective item, we will send you a replacement item at no additional charge. If the specific item is out of stock, we will offer you a similar product or issue a store credit for the equivalent value.</p>
-                          <p>2. Non-Defective Items:</p>
-                          <p>We do not accept returns or exchanges for items that are not defective, such as change of mind, size issues, or style preferences. Please double-check your size and order before confirming your purchase.</p>
-                          <p>3. Refunds:</p>
-                          <p>Refunds will only be issued in the case that we are unable to provide a replacement product. Refunds will be processed to the original payment method used at checkout.</p>
-                          <p>4. Shipping Fees:</p>
-                          <p>Any shipping fees incurred for returning defective items will be covered by Marcaug. However, customers are responsible for any shipping charges associated with returns that are not due to defects.</p>
-                          <p>5. How to Initiate an Exchange:</p>
-                          <p>Email us at croscrowteam@gmail.com  with your order number and a clear photo of the defective product</p>
+                          <div dangerouslySetInnerHTML={{ __html: formatPolicyText(product?.vendor_data?.easy_exchange || `Exchange Policy
+
+We want you to be fully satisfied with your purchase. That's why we offer an exchange option under the following conditions:
+
+Exchanges must be requested within 3 working days from the date of delivery.
+
+The product must be:
+
+Unworn and unused
+
+Free from sweat, stains, and body odour
+
+In its original condition with hang tags attached
+
+Customers are required to bear the delivery charges for both sides (to and from), as per the actual delivery costs.
+
+Once we receive the product, it will go through a quality check. After approval, we will dispatch the replacement item.
+
+Return Policy
+
+Return Window – You may request a return within 7 days from the date of delivery.
+
+Condition of Product – The item must be unworn, unused, and in its original condition with tags intact.
+
+Returns will not be accepted if the product is found to be worn, has stains, or carries any sweaty/strong odor.
+
+Return Charges – Return pickup charges will be borne by the customer. The applicable amount will be deducted from the refund.
+
+Refund Process – Once we receive and inspect the returned product, the refund will be processed within 24 hours to your original payment method.
+
+Right to Cancel Return – We reserve the right to reject/cancel the return if the product does not meet the above conditions.`) }} />
                         </>
                       </>
                     )
@@ -766,7 +825,7 @@ const ProductPage = ({ actions, state }) => {
                     scrollbarWidth: 'thin'
                   }}
                 >
-                  <div style={{ color: "#333", margin: 0, lineHeight: "1.6", textAlign: "center" }}>
+                  <div style={{ color: "#333", margin: 0, lineHeight: "1.6", textAlign: "left" }}>
                     {/* Dynamically render the content based on which title matches isOpen */}
                     {[
                       {
