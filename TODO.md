@@ -1,0 +1,7 @@
+- [x] Remove saleSettings state variable
+- [x] Remove useEffect that fetches sale settings
+- [x] Remove allCoupons state variable and its fetch useEffect
+- [x] Remove getBestDiscountedPrice function
+- [x] Remove isSale and isMegaSale logic in product mapping
+- [x] Remove SALE tag display
+- [x] Remove mega sale price display

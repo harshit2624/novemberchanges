@@ -17,6 +17,26 @@ const CartPage = ({ state }) => {
   // Utility to extract numeric price from WooCommerce HTML string
   const extractNumericPrice = (htmlPrice) => {
     if (!htmlPrice) return 0;
+
+    // Create a temporary div to parse HTML
+    const tempDiv = document.createElement("div");
+    tempDiv.innerHTML = htmlPrice;
+
+    // Check for sale price (ins tag) first
+    const salePriceElement = tempDiv.querySelector("ins .woocommerce-Price-amount");
+    if (salePriceElement) {
+      const salePrice = salePriceElement.textContent.replace(/[^\d.]/g, "");
+      return parseFloat(salePrice) || 0;
+    }
+
+    // If no sale price, get regular price
+    const regularPriceElement = tempDiv.querySelector(".woocommerce-Price-amount");
+    if (regularPriceElement) {
+      const regularPrice = regularPriceElement.textContent.replace(/[^\d.]/g, "");
+      return parseFloat(regularPrice) || 0;
+    }
+
+    // Fallback to regex if HTML parsing fails
     const match = htmlPrice.match(/([\d,]+\.\d{2})/);
     return match ? parseFloat(match[1].replace(/,/g, "")) : 0;
   };

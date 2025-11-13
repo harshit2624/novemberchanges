@@ -2,6 +2,7 @@ import Theme from "./components";
 import image from "@frontity/html2react/processors/image";
 import link from "@frontity/html2react/processors/link";
 import woocommerceHandler from "./handlers/woocommerce-handler";
+import sitemapHandler from "./sitemap";
 
 const productCategoryHandler = {
   pattern: "/product-category/:slug",
@@ -105,6 +106,9 @@ const twentyTwentyTheme = {
     woocommerceHandler,
   },
   libraries: {
+    source: {
+      handlers: [productCategoryHandler, sitemapHandler],
+    },
     html2react: {
       /**
        * Add a processor to `html2react` so it processes the `<img>` tags
@@ -112,9 +116,6 @@ const twentyTwentyTheme = {
        * You can add your own processors too.
        */
       processors: [image, link],
-      source: {
-        handlers: [productCategoryHandler],
-      },
     },
   },
 };

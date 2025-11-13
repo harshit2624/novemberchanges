@@ -46,33 +46,6 @@ const CheckoutPage = ({ state, actions }) => {
   const [razorpayDiscountPercent, setRazorpayDiscountPercent] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Utility to extract numeric price from WooCommerce HTML string
-  const extractNumericPrice = (htmlPrice) => {
-    if (!htmlPrice) return 0;
-
-    // Create a temporary div to parse HTML
-    const tempDiv = document.createElement("div");
-    tempDiv.innerHTML = htmlPrice;
-
-    // Check for sale price (ins tag) first
-    const salePriceElement = tempDiv.querySelector("ins .woocommerce-Price-amount");
-    if (salePriceElement) {
-      const salePrice = salePriceElement.textContent.replace(/[^\d.]/g, "");
-      return parseFloat(salePrice) || 0;
-    }
-
-    // If no sale price, get regular price
-    const regularPriceElement = tempDiv.querySelector(".woocommerce-Price-amount");
-    if (regularPriceElement) {
-      const regularPrice = regularPriceElement.textContent.replace(/[^\d.]/g, "");
-      return parseFloat(regularPrice) || 0;
-    }
-
-    // Fallback to regex if HTML parsing fails
-    const match = htmlPrice.match(/([\d,]+\.\d{2})/);
-    return match ? parseFloat(match[1].replace(/,/g, "")) : 0;
-  };
-
   // For billing address (when useSameAddress is false)
   const billingFirstNameRef = useRef(null);
   const billingLastNameRef = useRef(null);
@@ -141,6 +114,7 @@ const CheckoutPage = ({ state, actions }) => {
       const discount = localStorage.getItem("discountAmount");
       const code = localStorage.getItem("couponCode");
 
+      const token = localStorage.getItem("jwt_token");
       if (discount) {
         setDiscountAmount(parseFloat(discount));
       }
@@ -439,48 +413,23 @@ const CheckoutPage = ({ state, actions }) => {
           password: "cs_14996e7e8eed396bced4ac30a0acfd9fea836214",
         },
       });
-  
-      // Convert object to array
+
       const countryArray = Object.entries(res.data).map(([code, data]) => ({
         code,
         name: data.name,
         states: data.states,
       }));
-  
-      // ✅ Find India by name instead of code
-      const indiaCountry = countryArray.find(
-        (c) => c.name.toLowerCase() === "india"
-      );
-      const otherCountries = countryArray.filter(
-        (c) => c.name.toLowerCase() !== "india"
-      );
-  
-      // Sort others alphabetically
-      otherCountries.sort((a, b) => a.name.localeCompare(b.name));
-  
-      // Combine India + others
-      const finalCountries = indiaCountry
-        ? [indiaCountry, ...otherCountries]
-        : otherCountries;
-  
-      setCountries(finalCountries);
-  
-      // Set India defaults
-      if (indiaCountry) {
-        setStates(indiaCountry.states || []);
-        setBillingStates(indiaCountry.states || []);
-        setForm((prev) => ({
-          ...prev,
-          country: indiaCountry.code,
-          billing_country: indiaCountry.code,
-        }));
-      }
+
+      setCountries(countryArray);
+
+      // Set states for default country
+      const defaultCountry = countryArray.find((c) => c.code === form.country);
+      setStates(defaultCountry?.states || []);
     } catch (err) {
       console.error("Country fetch error:", err);
     }
   };
-  
-  
+
   const fetchShippingMethodsForCountry = async (countryCode) => {
     try {
       if (typeof countryCode !== 'string' || !countryCode) {
@@ -702,14 +651,14 @@ const CheckoutPage = ({ state, actions }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-
+  
     if (!validateForm()) {
       return; // block submit if validation errors
     }
-
+  
     // Set submitting state for button feedback
     setIsSubmitting(true);
-
+  
     placeOrder();
   };
   const fetchAvailableCoupons = async () => {
@@ -879,7 +828,8 @@ const CheckoutPage = ({ state, actions }) => {
         const isEligible = matchesProductId || matchesCategoryId;
 
         if (isEligible) {
-          const price = extractNumericPrice(item.price);
+          const priceString = item.price?.match(/[\d,]+\.\d+/)?.[0]?.replace(',', '') || '0';
+          const price = parseFloat(priceString);
 
           if (matchingCoupon.discount_type === "fixed_product") {
             discount += parseFloat(matchingCoupon.amount) * item.quantity;
@@ -905,9 +855,14 @@ const CheckoutPage = ({ state, actions }) => {
     showToast("Coupon removed", 'info');
   };
   const placeOrder = async () => {
+    // For Razorpay - show loading animation
+    if (form.payment_method === "razorpay") {
+      setOrderStatus('loading');
+    }
+  
     try {
       const customerId = await getLoggedInCustomerId();
-
+  
       const orderData = {
         ...(customerId && { customer_id: customerId }),
         payment_method: form.payment_method,
@@ -967,64 +922,69 @@ const CheckoutPage = ({ state, actions }) => {
           ]
           : [],
       };
-
-      // Create order
+  
+      // Create order - ONLY critical step
       const res = await axios.post(`${apiUrl}/wc/v3/orders`, orderData, {
         auth: {
           username: "ck_2732dde9479fa4adf07d8c7269ae22f39f2c74a5",
           password: "cs_14996e7e8eed396bced4ac30a0acfd9fea836214",
         },
       });
-
+  
       const wcOrderId = res.data.id;
-
-      // Background tasks - fire and forget (don't await)
-      const performBackgroundTasks = () => {
-        // Email sending in background
-        axios.post(`${apiUrl}/wc/v3/send-order-email`, {
-          order_id: wcOrderId,
-          customer_email: form.email,
-          customer_name: `${form.first_name} ${form.last_name}`
-        }, {
-          auth: {
-            username: "ck_2732dde9479fa4adf07d8c7269ae22f39f2c74a5",
-            password: "cs_14996e7e8eed396bced4ac30a0acfd9fea836214",
-          },
-        }).catch(err => console.error("Email error:", err));
-
-        // Save address in background
-        if (saveCurrentAddress && addressNickname.trim()) {
-          const token = localStorage.getItem("jwt_token");
-          if (token) {
-            fetch(`${apiUrl}/theme/v1/customer-addresses`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                nickname: addressNickname,
-                first_name: form.first_name,
-                last_name: form.last_name,
-                address_1: form.address_1,
-                address_2: form.address_2,
-                city: form.city,
-                state: form.state,
-                postcode: form.postcode,
-                country: form.country,
-                phone: form.phone,
-              }),
-            }).catch(err => console.error("Address save error:", err));
-          }
+      setCompletedOrderId(wcOrderId);
+  
+      // Clear storage immediately
+      localStorage.removeItem("discountAmount");
+      localStorage.removeItem("couponCode");
+  
+      // ALL BACKGROUND TASKS - Fire and forget (NO await, NO .then())
+      // Email
+      axios.post(`${apiUrl}/wc/v3/send-order-email`, {
+        order_id: wcOrderId,
+        customer_email: form.email,
+        customer_name: `${form.first_name} ${form.last_name}`
+      }, {
+        auth: {
+          username: "ck_2732dde9479fa4adf07d8c7269ae22f39f2c74a5",
+          password: "cs_14996e7e8eed396bced4ac30a0acfd9fea836214",
+        },
+      }).catch(() => {});
+  
+      // Save address
+      if (saveCurrentAddress && addressNickname.trim()) {
+        const token = localStorage.getItem("jwt_token");
+        if (token) {
+          fetch(`${apiUrl}/theme/v1/customer-addresses`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              nickname: addressNickname,
+              first_name: form.first_name,
+              last_name: form.last_name,
+              address_1: form.address_1,
+              address_2: form.address_2,
+              city: form.city,
+              state: form.state,
+              postcode: form.postcode,
+              country: form.country,
+              phone: form.phone,
+            }),
+          }).catch(() => {});
         }
-      };
-
+      }
+  
       if (form.payment_method === "razorpay") {
-        // For Razorpay - create order and open modal immediately
+        // Hide loading, open Razorpay immediately
+        setOrderStatus('idle');
+  
         const razorRes = await axios.post(`${apiUrl}/razorpay/v1/create-order`, {
           order_id: wcOrderId,
         });
-
+  
         const options = {
           key: razorRes.data.key,
           amount: razorRes.data.amount,
@@ -1041,7 +1001,7 @@ const CheckoutPage = ({ state, actions }) => {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_signature: response.razorpay_signature,
               });
-
+  
               // Update order status in background
               axios.put(`${apiUrl}/wc/v3/orders/${wcOrderId}`, {
                 status: "processing"
@@ -1050,17 +1010,9 @@ const CheckoutPage = ({ state, actions }) => {
                   username: "ck_2732dde9479fa4adf07d8c7269ae22f39f2c74a5",
                   password: "cs_14996e7e8eed396bced4ac30a0acfd9fea836214",
                 },
-              }).catch(err => console.error("Status update error:", err));
-
-              // Clear storage
-              localStorage.removeItem("discountAmount");
-              localStorage.removeItem("couponCode");
-
-              // Start background tasks
-              performBackgroundTasks();
-
-              // Remove from cart and redirect
-              await removeFromCart(state);
+              }).catch(() => {});
+  
+              // Redirect immediately
               actions.router.set(`/thank-you?order_id=${wcOrderId}`);
             } catch (err) {
               console.error("Verification error:", err);
@@ -1077,8 +1029,10 @@ const CheckoutPage = ({ state, actions }) => {
                   username: "ck_2732dde9479fa4adf07d8c7269ae22f39f2c74a5",
                   password: "cs_14996e7e8eed396bced4ac30a0acfd9fea836214",
                 },
-              }).catch(err => console.error("Cancel error:", err));
-
+              }).catch(() => {});
+  
+              setOrderStatus('idle');
+              setIsSubmitting(false);
               showToast("Payment cancelled.", "warn");
             }
           },
@@ -1089,35 +1043,35 @@ const CheckoutPage = ({ state, actions }) => {
           },
           theme: { color: "#3399cc" },
         };
-
+  
         const rzp = new window.Razorpay(options);
         rzp.open();
-
+  
       } else {
-        // COD, Bank Transfer, etc. - redirect immediately
-
-        // Clear storage
-        localStorage.removeItem("discountAmount");
-        localStorage.removeItem("couponCode");
-
-        // Start background tasks
-        performBackgroundTasks();
-
-        // Remove from cart and redirect
-        await removeFromCart(state);
+        // COD, Bank Transfer - Redirect IMMEDIATELY (like old code)
+        setIsSubmitting(false);
         actions.router.set(`/thank-you?order_id=${wcOrderId}`);
       }
+  
     } catch (err) {
       console.error("Order error:", err.response?.data || err.message);
       showToast("Failed to place order. Please try again.", "error");
+      setOrderStatus('idle');
+      setIsSubmitting(false);
     }
   };
 
   // Utility to extract numeric price from WooCommerce HTML string
+  const extractNumericPrice = (htmlPrice) => {
+    if (!htmlPrice) return 0;
+    const match = htmlPrice.match(/([\d,]+\.\d{2})/);
+    return match ? parseFloat(match[1].replace(/,/g, "")) : 0;
+  };
 
   const cartTotal = cart.reduce((total, item) => {
-    // Extract number from HTML string using sale price if available
-    const price = extractNumericPrice(item.price);
+    // Extract number from HTML string
+    const priceString = item.price?.match(/[\d,]+\.\d+/)?.[0]?.replace(',', '') || '0';
+    const price = parseFloat(priceString);
     const quantity = item.quantity || 1;
 
     return total + price * quantity;
@@ -1147,12 +1101,8 @@ const CheckoutPage = ({ state, actions }) => {
       {showFlashScreen && (
         <FlashScreen
           isVisible={showFlashScreen}
-          onClose={() => {
-            setShowFlashScreen(false); // Just close the flash screen
-          }}
-          onLoginClick={() => {
-            setShowFlashScreen(false); // Just close the flash screen
-          }}
+          onClose={() => setShowFlashScreen(false)}
+          onLoginClick={() => setShowFlashScreen(false)}
         />
       )}
       {orderStatus !== 'idle' && (
@@ -1527,6 +1477,7 @@ const CheckoutPage = ({ state, actions }) => {
                 onChange={handleChange}
                 required
               >
+                <option value="">Select Country</option>
                 {countries.map((country) => (
                   <option key={country.code} value={country.code}>
                     {country.name}
@@ -1711,6 +1662,7 @@ const CheckoutPage = ({ state, actions }) => {
                     onChange={handleChange}
                     required={!useSameAddress}
                   >
+                    <option value="">Select Country</option>
                     {countries.map((country) => (
                       <option key={country.code} value={country.code}>
                         {country.name}
@@ -1954,7 +1906,7 @@ const CheckoutPage = ({ state, actions }) => {
             cursor: isSubmitting ? 'not-allowed' : 'pointer'
           }}
         >
-          {isSubmitting ? 'Processing...' : 'Place Your Order'}
+          {isSubmitting ? 'Processing...' : 'Place Order'}
         </button>
       </form>
     </div>

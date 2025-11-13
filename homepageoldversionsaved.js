@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { connect } from "frontity";
-import { Global, css } from "frontity";
 import {
   toggleWishlist,
   getWishlist,
@@ -81,24 +80,36 @@ const Homepage = ({ state, libraries, actions }) => {
     };
   }, []);
 
-  // ✅ Fetch Best Selling Products
+  // Fetch all data in parallel
   useEffect(() => {
-    const fetchBestSelling = async () => {
+    const fetchAllData = async () => {
+      setLoading(true);
+      setIsLoading(true);
+      
       try {
-        setLoading(true); // show loader before API call
-        const res = await fetch(
-          "https://www.croscrow.com/a/wp-json/wc/v3/products/?category=140&per_page=15"
-        );
-        const products = await res.json();
+        const [bestSellingRes, categoryRes, saleRes, couponsRes] = await Promise.all([
+          fetch("https://www.croscrow.com/a/wp-json/wc/v3/products/?category=140&per_page=15"),
+          fetch(`https://www.croscrow.com/a/wp-json/wc/v3/products/?category=146&per_page=8`),
+          fetch(`${getWpBaseUrl(state)}/wp-json/scs/v1/settings`),
+          fetch(`${getWpBaseUrl(state)}/wp-json/wc/v3/coupons?per_page=100&consumer_key=${consumer_key}&consumer_secret=${consumer_secret}`)
+        ]);
 
-        if (Array.isArray(products)) {
-          const productItems = products
+        const [bestSellingProducts, categoryProducts, saleSettings, coupons] = await Promise.all([
+          bestSellingRes.json(),
+          categoryRes.json(),
+          saleRes.json(),
+          couponsRes.json()
+        ]);
+
+        // Process best selling products
+        if (Array.isArray(bestSellingProducts)) {
+          const productItems = bestSellingProducts
             .map(
               (p) => `
               <li class="wc-block-product custom-product-item">
                 <a href="/product/${p.slug}" class="custom-product-link">
                   <div class="custom-product-image">
-                    <img src="${p.images?.[0]?.src || ""}" alt="${p.name}" />
+                    <img src="${p.images?.[0]?.src || ""}" alt="${p.name}" loading="lazy" />
                   </div>
                   <h3 class="custom-product-title">${p.name}</h3>
                 </a>
@@ -106,71 +117,29 @@ const Homepage = ({ state, libraries, actions }) => {
             `
             )
             .join("");
-
           setBestSellingHtml(productItems);
         }
-      } catch (err) {
-        console.error("Failed to fetch best selling products", err);
-      } finally {
-        setLoading(false); // hide loader after API call
-      }
-    };
 
-    fetchBestSelling();
-  }, []);
-
-  // ✅ Fetch Category 146 Products
-  useEffect(() => {
-    const fetchCategoryProducts = async () => {
-      try {
-        setIsLoading(true);
-        const res = await fetch(
-          `https://www.croscrow.com/a/wp-json/wc/v3/products/?category=146&per_page=8`
-        );
-        const products = await res.json();
-
-        if (Array.isArray(products)) {
-          setCategoryProducts(products);
+        // Process other data
+        if (Array.isArray(categoryProducts)) {
+          setCategoryProducts(categoryProducts);
         }
-      } catch (err) {
-        console.error("Failed to fetch category 146 products", err);
+        if (saleSettings) {
+          setSaleSettings(saleSettings);
+        }
+        if (Array.isArray(coupons)) {
+          setAllCoupons(coupons);
+        }
+      } catch (error) {
+        console.error("Failed to fetch data:", error);
       } finally {
+        setLoading(false);
         setIsLoading(false);
       }
     };
 
-    fetchCategoryProducts();
-  }, []);
-
-  useEffect(() => {
-    const fetchSaleSettings = async () => {
-      try {
-        const response = await fetch(`${getWpBaseUrl(state)}/wp-json/scs/v1/settings`);
-        if (response.ok) {
-          const data = await response.json();
-          setSaleSettings(data);
-        }
-      } catch (error) {
-        console.error("Error fetching sale settings:", error);
-      }
-    };
-    fetchSaleSettings();
-  }, []);
-
-  useEffect(() => {
-    const fetchAllCoupons = async () => {
-      try {
-        const response = await fetch(
-          `${getWpBaseUrl(state)}/wp-json/wc/v3/coupons?per_page=100&consumer_key=${consumer_key}&consumer_secret=${consumer_secret}`
-        );
-        const coupons = await response.json();
-        setAllCoupons(coupons);
-      } catch (error) {
-        console.error("Failed to fetch coupons", error);
-      }
-    };
-    fetchAllCoupons();
-  }, []);
+    fetchAllData();
+  }, [state]);
 
   // Handle add to cart & wishlist button clicks
   useEffect(() => {
@@ -218,16 +187,17 @@ const Homepage = ({ state, libraries, actions }) => {
     return () => document.removeEventListener("click", handleClick);
   }, [categoryProducts, actions]);
 
-  // DOM manipulation: format WooCommerce products (for other sections)
+  // Optimize DOM manipulation with a single useEffect and requestAnimationFrame
   useEffect(() => {
-    const interval = setInterval(() => {
+    let rafId;
+    const formatProducts = () => {
       const products = document.querySelectorAll("li.wc-block-product");
-
-      if (products.length === 0) return;
-      clearInterval(interval);
+      if (products.length === 0) {
+        rafId = requestAnimationFrame(formatProducts);
+        return;
+      }
 
       const wishlist = getWishlist();
-
       products.forEach((product) => {
         const productId = product.querySelector(
           ".add_to_cart_button[data-product_id]"
@@ -380,9 +350,15 @@ const Homepage = ({ state, libraries, actions }) => {
           product.appendChild(gridWrapper);
         }
       });
-    }, 300);
+    };
 
-    return () => clearInterval(interval);
+    formatProducts();
+
+    return () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+    };
   }, [data]);
 
   // ✅ Handle category products formatting after they're added to DOM
@@ -736,269 +712,9 @@ const Homepage = ({ state, libraries, actions }) => {
         : `$1${bestSellingHtml || ""}$3`
     ) || "<p>No content</p>";
 
-
-const [currentSlide, setCurrentSlide] = useState(0);
-const [isAutoPlay, setIsAutoPlay] = useState(true);
-
-const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
-const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % slides.length);
-const goToSlide = (index) => setCurrentSlide(index);
-
-
-
-
-
-const slides = [
-  {
-    id: 1,
-    image: "https://www.croscrow.com/a/wp-content/uploads/2025/11/Untitled-design-24-0x0.png",
-    title: "Slide One",
-   
-  },
-  {
-    id: 2,
-    image: "https://www.croscrow.com/a/wp-content/uploads/2025/11/Untitled-design-24-0x0.png",
-    title: "Slide Two",
-   
-  },
-  {
-    id: 3,
-    image: "https://www.croscrow.com/a/wp-content/uploads/2025/11/Untitled-design-24-0x0.png",
-    title: "Slide Three",
-    
-  },
-  {
-    id: 4,
-    image: "https://www.croscrow.com/a/wp-content/uploads/2025/11/Untitled-design-24-0x0.png",
-    title: "Slide Four"
-  
-  },
-  {
-    id: 5,
-    image: "https://www.croscrow.com/a/wp-content/uploads/2025/11/Untitled-design-24-0x0.png",
-    title: "Slide Five"
-   
-  },
-]
-
-
-
-
-
-
   return (
     <>
-   
-
-      
-   {/* slider section  */}
-<section>
-   <Global
-        styles={css`
-          /* Slider */
-          .slider-wrapper {
-            position: relative;
-            width: 100%;
-            overflow: hidden;
-             padding:50px;
-              display: flex;
-  transition: transform 0.3s ease-out;
- 
-          }
-          .slides-wrapper {
-            display: flex;
-            transition: transform 0.3s ease-out;
-            position: relative;
-          }
-         .slide {
-    min-width: 100%;
-    position: relative;
-    border-radius: 10px;
-}
-          .slide-overlay {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            color: #fff;
-            border: 3px white;
-            padding: 10px;
-            border-radius: 20px;
-            
-          }
-         .nav-button {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  background: rgba(0, 0, 0, 0.5);
-  border: none;
-  color: #fff;
-  padding: 10px;
-  cursor: pointer;
-  z-index: 10;
-  border-radius: 50%;
-}
-
-.nav-button-prev { left: 10px; }
-.nav-button-next { right: 10px; }
-
-.pagination {
-  position: absolute;  /* <-- change to absolute */
-  bottom: 10px;        /* stick at bottom of image */
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 8px;
-  z-index: 10;
-}
-          
-           
-          .dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #ccc;
-            margin: 0 5px;
-            border: none;
-            cursor: pointer;
-          }
-          .dot.active {
-            background: #333;
-          }
-
-          /* Product Grid */
-          .category-products-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 20px;
-            padding: 20px 0;
-          }
-          .custom-product-title {
-            font-size: 16px;
-            font-weight: 600;
-            margin-top: 10px;
-          }
-          .custom-product-image img {
-            width: 100%;
-            border-radius: 8px;
-          }
-          .wishlist_button {
-            background: transparent;
-            border: none;
-            cursor: pointer;
-          }
-          .wishlist_button.active path.heart-fill {
-            fill: red;
-          }
-          .product-actions .sale-tag {
-            font-size: 12px;
-            font-weight: bold;
-            color: #fff;
-            background: red;
-            padding: 4px 6px;
-            border-radius: 4px;
-            position: absolute;
-            top: 10px;
-            right: 10px;
-          }
-
-          /* Mega sale */
-          .mega-sale-price {
-            font-size: 0.8rem;
-            color: white;
-            background-color: red;
-            padding: 4px;
-            text-align: center;
-            margin-top: 5px;
-          }
-
-           @media (max-width: 768px) {
-           .slider-wrapper {
-           
-             padding:20px;
-          }
-           
-           }
-        `}
-      />
-
- <div className="slider-wrapper">
-      <div className="slider-container">
-        {/* Slider Container */}
-        <div className="slider">
-          {/* Slides */}
-         <div
-  className="slides-wrapper"
-  style={{
-    transform: `translateX(-${currentSlide * 100}%)`,
-    transition: "transform 0.3s ease-out",
-  }}
->
-  {slides.map((slide, index) => (
-    <div key={slide.id} className="slide">
-     <img
-  src={slide.image || "/placeholder.svg"}
-  alt={slide.title}
-  style={{ borderRadius: "20px" }} // change 20px to whatever you want
-/>
-     
-    </div>
-  ))}
-</div>
-
-
-
-          {/* Navigation Arrows - Desktop */}
-          <button
-            onClick={prevSlide}
-            onMouseEnter={() => setIsAutoPlay(false)}
-            onMouseLeave={() => setIsAutoPlay(true)}
-            className="nav-button nav-button-prev"
-            aria-label="Previous slide"
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="15 18 9 12 15 6"></polyline>
-            </svg>
-          </button>
-
-          <button
-            onClick={nextSlide}
-            onMouseEnter={() => setIsAutoPlay(false)}
-            onMouseLeave={() => setIsAutoPlay(true)}
-            className="nav-button nav-button-next"
-            aria-label="Next slide"
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="9 18 15 12 9 6"></polyline>
-            </svg>
-          </button>
-
-          {/* Mobile Navigation Arrows */}
-          
-
-          {/* Pagination Dots - Centered at Bottom */}
-          <div className="pagination">
-            {slides.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => goToSlide(index)}
-                className={`dot ${index === currentSlide ? "active" : ""}`}
-                aria-label={`Go to slide ${index + 1}`}
-                aria-current={index === currentSlide}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Slide Counter */}
-       
-      </div>
-    </div>
-</section>
-
-
-
-
-
+      <Html2React html={updatedHtml} />
       <div className="global_custom_class shop_by_cat_display">
         <h2>Shop By Categories</h2>
 

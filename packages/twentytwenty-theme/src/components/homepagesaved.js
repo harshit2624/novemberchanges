@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { connect } from "frontity";
-import { Global, css } from "frontity";
 import {
   toggleWishlist,
   getWishlist,
@@ -24,8 +23,7 @@ const Homepage = ({ state, libraries, actions }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [hasMoreProducts, setHasMoreProducts] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [allCoupons, setAllCoupons] = useState([]);
-  const [saleSettings, setSaleSettings] = useState(null);
+
 
   const parsePriceHtml = useCallback((product, html) => {
     // Use DOMParser to decode HTML entities
@@ -142,35 +140,9 @@ const Homepage = ({ state, libraries, actions }) => {
     fetchCategoryProducts();
   }, []);
 
-  useEffect(() => {
-    const fetchSaleSettings = async () => {
-      try {
-        const response = await fetch(`${getWpBaseUrl(state)}/wp-json/scs/v1/settings`);
-        if (response.ok) {
-          const data = await response.json();
-          setSaleSettings(data);
-        }
-      } catch (error) {
-        console.error("Error fetching sale settings:", error);
-      }
-    };
-    fetchSaleSettings();
-  }, []);
 
-  useEffect(() => {
-    const fetchAllCoupons = async () => {
-      try {
-        const response = await fetch(
-          `${getWpBaseUrl(state)}/wp-json/wc/v3/coupons?per_page=100&consumer_key=${consumer_key}&consumer_secret=${consumer_secret}`
-        );
-        const coupons = await response.json();
-        setAllCoupons(coupons);
-      } catch (error) {
-        console.error("Failed to fetch coupons", error);
-      }
-    };
-    fetchAllCoupons();
-  }, []);
+
+
 
   // Handle add to cart & wishlist button clicks
   useEffect(() => {
@@ -671,49 +643,7 @@ const Homepage = ({ state, libraries, actions }) => {
     };
   }, [data.isReady, loading]);
 
-  const getBestDiscountedPrice = (product, coupons) => {
-    const applicableCoupons = coupons.filter((coupon) => {
-      const isGlobalCoupon =
-        (!coupon.product_ids || coupon.product_ids.length === 0) &&
-        (!coupon.product_categories || coupon.product_categories.length === 0) &&
-        (!coupon.excluded_product_ids || coupon.excluded_product_ids.length === 0) &&
-        (!coupon.excluded_product_categories || coupon.excluded_product_categories.length === 0);
 
-      const includesProduct =
-        (coupon.product_ids && coupon.product_ids.includes(product.id)) ||
-        (coupon.product_categories && coupon.product_categories.some((catId) =>
-          product.categories && product.categories.some((cat) => cat.id === catId)
-        ));
-
-      const isExcluded =
-        (coupon.excluded_product_ids && coupon.excluded_product_ids.includes(product.id)) ||
-        (coupon.excluded_product_categories && coupon.excluded_product_categories.some((excludedCatId) =>
-          product.categories && product.categories.some((cat) => cat.id === excludedCatId)
-        ));
-
-      return (isGlobalCoupon || includesProduct) && !isExcluded;
-    });
-
-    if (applicableCoupons.length === 0) {
-      return null;
-    }
-
-    let bestDiscountedPrice = parseFloat(product.price);
-
-    applicableCoupons.forEach((coupon) => {
-      const discountAmount =
-        coupon.discount_type === "percent"
-          ? (product.price * coupon.amount) / 100
-          : parseFloat(coupon.amount);
-      const discountedPrice = product.price - discountAmount;
-
-      if (discountedPrice < bestDiscountedPrice) {
-        bestDiscountedPrice = discountedPrice;
-      }
-    });
-
-    return bestDiscountedPrice.toFixed(2);
-  };
 
   if (!data.isReady) return <div className="loading-indicator" style={{ textAlign: 'center', padding: '20px' }}>
     <Loading />
@@ -736,269 +666,9 @@ const Homepage = ({ state, libraries, actions }) => {
         : `$1${bestSellingHtml || ""}$3`
     ) || "<p>No content</p>";
 
-
-const [currentSlide, setCurrentSlide] = useState(0);
-const [isAutoPlay, setIsAutoPlay] = useState(true);
-
-const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
-const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % slides.length);
-const goToSlide = (index) => setCurrentSlide(index);
-
-
-
-
-
-const slides = [
-  {
-    id: 1,
-    image: "https://www.croscrow.com/a/wp-content/uploads/2025/11/Untitled-design-24-0x0.png",
-    title: "Slide One",
-   
-  },
-  {
-    id: 2,
-    image: "https://www.croscrow.com/a/wp-content/uploads/2025/11/Untitled-design-24-0x0.png",
-    title: "Slide Two",
-   
-  },
-  {
-    id: 3,
-    image: "https://www.croscrow.com/a/wp-content/uploads/2025/11/Untitled-design-24-0x0.png",
-    title: "Slide Three",
-    
-  },
-  {
-    id: 4,
-    image: "https://www.croscrow.com/a/wp-content/uploads/2025/11/Untitled-design-24-0x0.png",
-    title: "Slide Four"
-  
-  },
-  {
-    id: 5,
-    image: "https://www.croscrow.com/a/wp-content/uploads/2025/11/Untitled-design-24-0x0.png",
-    title: "Slide Five"
-   
-  },
-]
-
-
-
-
-
-
   return (
     <>
-   
-
-      
-   {/* slider section  */}
-<section>
-   <Global
-        styles={css`
-          /* Slider */
-          .slider-wrapper {
-            position: relative;
-            width: 100%;
-            overflow: hidden;
-             padding:50px;
-              display: flex;
-  transition: transform 0.3s ease-out;
- 
-          }
-          .slides-wrapper {
-            display: flex;
-            transition: transform 0.3s ease-out;
-            position: relative;
-          }
-         .slide {
-    min-width: 100%;
-    position: relative;
-    border-radius: 10px;
-}
-          .slide-overlay {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            color: #fff;
-            border: 3px white;
-            padding: 10px;
-            border-radius: 20px;
-            
-          }
-         .nav-button {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  background: rgba(0, 0, 0, 0.5);
-  border: none;
-  color: #fff;
-  padding: 10px;
-  cursor: pointer;
-  z-index: 10;
-  border-radius: 50%;
-}
-
-.nav-button-prev { left: 10px; }
-.nav-button-next { right: 10px; }
-
-.pagination {
-  position: absolute;  /* <-- change to absolute */
-  bottom: 10px;        /* stick at bottom of image */
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 8px;
-  z-index: 10;
-}
-          
-           
-          .dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #ccc;
-            margin: 0 5px;
-            border: none;
-            cursor: pointer;
-          }
-          .dot.active {
-            background: #333;
-          }
-
-          /* Product Grid */
-          .category-products-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 20px;
-            padding: 20px 0;
-          }
-          .custom-product-title {
-            font-size: 16px;
-            font-weight: 600;
-            margin-top: 10px;
-          }
-          .custom-product-image img {
-            width: 100%;
-            border-radius: 8px;
-          }
-          .wishlist_button {
-            background: transparent;
-            border: none;
-            cursor: pointer;
-          }
-          .wishlist_button.active path.heart-fill {
-            fill: red;
-          }
-          .product-actions .sale-tag {
-            font-size: 12px;
-            font-weight: bold;
-            color: #fff;
-            background: red;
-            padding: 4px 6px;
-            border-radius: 4px;
-            position: absolute;
-            top: 10px;
-            right: 10px;
-          }
-
-          /* Mega sale */
-          .mega-sale-price {
-            font-size: 0.8rem;
-            color: white;
-            background-color: red;
-            padding: 4px;
-            text-align: center;
-            margin-top: 5px;
-          }
-
-           @media (max-width: 768px) {
-           .slider-wrapper {
-           
-             padding:20px;
-          }
-           
-           }
-        `}
-      />
-
- <div className="slider-wrapper">
-      <div className="slider-container">
-        {/* Slider Container */}
-        <div className="slider">
-          {/* Slides */}
-         <div
-  className="slides-wrapper"
-  style={{
-    transform: `translateX(-${currentSlide * 100}%)`,
-    transition: "transform 0.3s ease-out",
-  }}
->
-  {slides.map((slide, index) => (
-    <div key={slide.id} className="slide">
-     <img
-  src={slide.image || "/placeholder.svg"}
-  alt={slide.title}
-  style={{ borderRadius: "20px" }} // change 20px to whatever you want
-/>
-     
-    </div>
-  ))}
-</div>
-
-
-
-          {/* Navigation Arrows - Desktop */}
-          <button
-            onClick={prevSlide}
-            onMouseEnter={() => setIsAutoPlay(false)}
-            onMouseLeave={() => setIsAutoPlay(true)}
-            className="nav-button nav-button-prev"
-            aria-label="Previous slide"
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="15 18 9 12 15 6"></polyline>
-            </svg>
-          </button>
-
-          <button
-            onClick={nextSlide}
-            onMouseEnter={() => setIsAutoPlay(false)}
-            onMouseLeave={() => setIsAutoPlay(true)}
-            className="nav-button nav-button-next"
-            aria-label="Next slide"
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="9 18 15 12 9 6"></polyline>
-            </svg>
-          </button>
-
-          {/* Mobile Navigation Arrows */}
-          
-
-          {/* Pagination Dots - Centered at Bottom */}
-          <div className="pagination">
-            {slides.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => goToSlide(index)}
-                className={`dot ${index === currentSlide ? "active" : ""}`}
-                aria-label={`Go to slide ${index + 1}`}
-                aria-current={index === currentSlide}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Slide Counter */}
-       
-      </div>
-    </div>
-</section>
-
-
-
-
-
+      <Html2React html={updatedHtml} />
       <div className="global_custom_class shop_by_cat_display">
         <h2>Shop By Categories</h2>
 
@@ -1007,10 +677,6 @@ const slides = [
           <div className="category-products-section">
             <ul className="category-products-grid">
               {categoryProducts.map((product) => {
-                // log product safely
-                const isSale = saleSettings && saleSettings.sale_category && product.categories.some(category => category.id === saleSettings.sale_category.id);
-                const isMegaSale = saleSettings && saleSettings.mega_sale_category && product.categories.some(category => category.id === saleSettings.mega_sale_category.id);
-                const megaSalePrice = getBestDiscountedPrice(product, allCoupons);
                 const { regularPrice, salePrice, onlyPrice } = parsePriceHtml(
                   product,
                   product.price_html
@@ -1026,25 +692,6 @@ const slides = [
                       link={`/product/${product.slug}`}
                       className="custom-product-link"
                     >
-                      {isSale && (
-                        <div
-                          className="sale-tag"
-                          style={{
-                            position: 'absolute',
-                            top: '10px',
-                            right: '10px',
-                            background: 'red',
-                            color: 'white',
-                            padding: '5px 10px',
-                            fontSize: '12px',
-                            fontWeight: 'bold',
-                            borderRadius: '5px',
-                            zIndex: 1,
-                          }}
-                        >
-                          SALE
-                        </div>
-                      )}
                       <div className="product-image custom-product-image">
                         <img
                           src={product.images?.[0]?.src || ""}
@@ -1072,21 +719,6 @@ const slides = [
                     <div className="product-actions wp-block-woocommerce-product-button">
                       {/* Buttons will be added by the DOM manipulation effect */}
                     </div>
-                    {isMegaSale && megaSalePrice && (
-                      <div
-                        className="mega-sale-price"
-                        style={{
-                          backgroundColor: "red",
-                          color: "white",
-                          padding: "5px",
-                          fontSize: "0.8em",
-                          textAlign: "center",
-                          marginTop: "5px",
-                        }}
-                      >
-                        {saleSettings.mega_sale_text} ₹{megaSalePrice}
-                      </div>
-                    )}
                   </li>
                 );
               })}
@@ -1105,7 +737,7 @@ const slides = [
       </div>
 
       {categoryProducts.length > 0 && (
-        <div class="wp-block-buttons alignfull view_all_button is-horizontal is-content-justification-center is-layout-flex wp-container-core-buttons-is-layout-03627597 wp-block-buttons-is-layout-flex" bis_skin_checked="1"><div class="wp-block-button has-custom-width wp-block-button__width-25 is-style-outline is-style-outline--1" bis_skin_checked="1"><Link link="/view-all/products/" target="_self" class="wp-block-button__link has-base-background-color has-text-color has-background has-link-color has-text-align-center wp-element-button css-h8js6y-props-css">View All</Link></div></div>
+        <div className="wp-block-buttons alignfull view_all_button is-horizontal is-content-justification-center is-layout-flex wp-container-core-buttons-is-layout-03627597 wp-block-buttons-is-layout-flex"><div className="wp-block-button has-custom-width wp-block-button__width-25 is-style-outline is-style-outline--1"><Link link="/view-all/products/" target="_self" className="wp-block-button__link has-base-background-color has-text-color has-background has-link-color has-text-align-center wp-element-button css-h8js6y-props-css">View All</Link></div></div>
       )}
     </>
   );

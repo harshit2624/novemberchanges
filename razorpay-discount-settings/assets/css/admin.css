@@ -1,0 +1,48 @@
+.razorpay-discount-notice {
+    margin: 15px 0;
+}
+
+.razorpay-discount-settings-form {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.razorpay-discount-settings-form .form-table th {
+    width: 200px;
+    padding: 20px 10px 20px 0;
+}
+
+.razorpay-discount-settings-form .form-table td {
+    padding: 20px 10px 20px 0;
+}
+
+.razorpay-discount-settings-form input[type="number"] {
+    width: 100px;
+}
+
+.razorpay-discount-settings-form .description {
+    color: #666;
+    font-style: italic;
+    margin-top: 5px;
+}
+
+.razorpay-discount-preview {
+    background: #f1f1f1;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    margin-top: 20px;
+}
+
+.razorpay-discount-preview h4 {
+    margin: 0 0 10px 0;
+    color: #23282d;
+}
+
+.razorpay-discount-preview .preview-amount {
+    font-weight: bold;
+    color: #28a745;
+}
